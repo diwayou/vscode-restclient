@@ -150,6 +150,36 @@ export class HttpClient {
             options.cookieJar = new CookieJar(this.cookieStore);
         }
 
+        // Check for manually set Cookie header and add to cookieJar if present
+        const cookieHeader = getHeader(options.headers!, 'Cookie') as string | undefined;
+        if (cookieHeader && settings.rememberCookiesForSubsequentRequests && options.cookieJar) {
+            // Parse cookies from the Cookie header
+            const cookies = cookieHeader.split(';').map(cookie => cookie.trim());
+            const requestUrl = httpRequest.url;
+            
+            for (const cookie of cookies) {
+                if (cookie) {
+                    try {
+                        await new Promise<void>((resolve, reject) => {
+                            options.cookieJar!.setCookie(cookie, requestUrl, (error: any) => {
+                                if (error) {
+                                    reject(error);
+                                } else {
+                                    resolve();
+                                }
+                            });
+                        });
+                    } catch (error) {
+                        // Ignore invalid cookies
+                        console.warn(`Failed to set cookie: ${cookie}`, error);
+                    }
+                }
+            }
+            
+            // Remove the Cookie header to avoid duplication since cookieJar will handle it
+            removeHeader(options.headers!, 'Cookie');
+        }
+
         // TODO: refactor auth
         const authorization = getHeader(options.headers!, 'Authorization') as string | undefined;
         if (authorization) {
